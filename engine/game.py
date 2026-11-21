@@ -82,7 +82,9 @@ class NeonRunner:
     def __init__(self) -> None:
         pygame.init()
         pygame.display.set_caption("NEON DASH - Afterhours Run")
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        self.fullscreen = True
+        self.screen = pygame.display.set_mode((WIDTH, HEIGHT),
+                                              pygame.FULLSCREEN | pygame.SCALED)
         self.shake_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         self.fx_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         self.clock = pygame.time.Clock()
@@ -389,6 +391,12 @@ class NeonRunner:
             self.update(dt)
             self.draw()
 
+    def toggle_fullscreen(self) -> None:
+        fullscreen = not self.fullscreen
+        flags = pygame.FULLSCREEN | pygame.SCALED if fullscreen else 0
+        self.screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
+        self.fullscreen = fullscreen
+
     def handle_events(self) -> None:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -408,6 +416,9 @@ class NeonRunner:
             if event.type != pygame.KEYDOWN:
                 continue
             key = event.key
+            if key == pygame.K_F11:
+                self.toggle_fullscreen()
+                continue
             if self.state == "menu":
                 if key in (pygame.K_UP, pygame.K_w):
                     self.menu_selection = (self.menu_selection - 1) % 6
@@ -1765,7 +1776,8 @@ class NeonRunner:
                       WHITE if active else MUTED,self.font,center=True)
         self.text(f"LVL {self.profile_level}     UPGRADE PTS {self.upgrade_points}     BEST {self.best_score:07d}",480,467,GOLD,self.small,center=True)
         sound_label = "SOUND OFF" if self.audio.muted else "SOUND ON"
-        self.text(f"W/S SELECT   ENTER CHOOSE   ESC QUIT   M {sound_label}",480,494,MUTED,self.small,center=True)
+        self.text(f"W/S SELECT   ENTER CHOOSE   F11 FULLSCREEN   ESC QUIT   M {sound_label}",
+                  480,494,MUTED,self.small,center=True)
 
     def draw_comfort(self) -> None:
         self.draw_track_preview()

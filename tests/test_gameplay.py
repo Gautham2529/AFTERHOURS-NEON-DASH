@@ -49,6 +49,21 @@ def test_start_menu_selection_wraps_and_comfort_screen_opens(runner):
     assert runner.menu_selection == 0
 
 
+def test_game_starts_fullscreen_and_f11_toggles_windowed_mode(runner):
+    assert runner.fullscreen
+    assert pygame.display.get_surface().get_flags() & pygame.FULLSCREEN
+
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_F11))
+    runner.handle_events()
+    assert not runner.fullscreen
+    assert not pygame.display.get_surface().get_flags() & pygame.FULLSCREEN
+
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_F11))
+    runner.handle_events()
+    assert runner.fullscreen
+    assert pygame.display.get_surface().get_flags() & pygame.FULLSCREEN
+
+
 def test_comfort_levels_wrap_and_persist(runner):
     runner.music_level = 3
     runner.change_comfort(2)

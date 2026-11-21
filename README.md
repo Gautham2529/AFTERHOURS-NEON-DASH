@@ -18,6 +18,7 @@ py main.py
 - `P` / `Esc`: pause; use `U` for upgrades or `C` for runners
 - `Enter` / `R`: restart after a run
 - `M`: mute or restore sound
+- `F11`: toggle fullscreen and windowed display
 - Touch screens: swipe left/right to change lanes; swipe up to jump and down to slide. Enable large tap controls from **Comfort & Controls**.
 
 Tokens score points and become upgrade points after the run. Batteries charge the dash. Shields absorb a crash, magnets pull in nearby tokens, score boosts double score gains, and overdrive increases speed and distance. An orange token doubler briefly makes each collected token count twice. The first run starts with a short tutorial. The title screen also has an upgrade garage and runner selection.
