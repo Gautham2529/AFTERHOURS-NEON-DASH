@@ -6,7 +6,6 @@ import math
 import random
 import sys
 from datetime import date
-from pathlib import Path
 
 import pygame
 
@@ -62,6 +61,8 @@ AVATARS = (
 
 def saved_level(value: object, default: int = 1) -> int:
     """Return a valid four-step setting level even when a save is stale or edited."""
+    if not isinstance(value, (int, float, str)):
+        return default
     try:
         return max(0, min(3, int(value)))
     except (TypeError, ValueError, OverflowError):
@@ -70,6 +71,8 @@ def saved_level(value: object, default: int = 1) -> int:
 
 def saved_integer(value: object, default: int = 0, maximum: int = 2_147_483_647) -> int:
     """Clamp untrusted persisted counters and use defaults for malformed values."""
+    if not isinstance(value, (int, float, str)):
+        return default
     try:
         return max(0, min(maximum, int(value)))
     except (TypeError, ValueError, OverflowError):
@@ -268,6 +271,7 @@ class NeonRunner:
                       for _ in range(100)]
 
     def make_skyline(self) -> list[tuple[int, int, int, int, int]]:
+        """Create the repeatable city skyline layout."""
         rng = random.Random(1999)
         result = []
         x = -10
@@ -279,6 +283,8 @@ class NeonRunner:
         return result
 
     def reset_run(self) -> None:
+        """Reset transient state for a new run."""
+        self.previous_best_score = 0
         self.lane = 1
         self.draw_lane = 1.0
         self.jump_time = 0.0
@@ -323,6 +329,7 @@ class NeonRunner:
         self.particles.clear()
 
     def persist(self) -> None:
+        """Save the current player profile and run state."""
         self.save.save({**self.preserved_save_data,
                         "schema_version": SAVE_SCHEMA_VERSION,
                         "best_score": self.best_score, "best_coins": self.best_coins,
@@ -374,17 +381,20 @@ class NeonRunner:
 
     @staticmethod
     def saved_ids(value: object, goals: tuple) -> set[str]:
+        """Keep only persisted IDs that belong to the supplied goals."""
         allowed = {goal.key for goal in goals}
         if not isinstance(value, (list, tuple, set)):
             return set()
         return {item for item in value if isinstance(item, str) and item in allowed}
 
     def apply_audio_levels(self) -> None:
+        """Apply the saved music and effects volume levels."""
         levels = (0.0, 0.08, 0.16, 0.25)
         self.audio.set_music_volume(levels[self.music_level])
         self.audio.set_sfx_volume(levels[self.sfx_level])
 
     def run(self) -> None:
+        """Run the game's event, update, and render loop."""
         while True:
             dt = min(self.clock.tick(FPS) / 1000, 0.04)
             self.handle_events()
@@ -392,12 +402,14 @@ class NeonRunner:
             self.draw()
 
     def toggle_fullscreen(self) -> None:
+        """Switch between fullscreen and windowed display modes."""
         fullscreen = not self.fullscreen
         flags = pygame.FULLSCREEN | pygame.SCALED if fullscreen else 0
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
         self.fullscreen = fullscreen
 
     def handle_events(self) -> None:
+        """Process queued window, keyboard, mouse, and touch events."""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.persist()
@@ -518,6 +530,7 @@ class NeonRunner:
                     self.state = "menu"
 
     def mouse_click(self, pos: tuple[int, int]) -> None:
+        """Dispatch a mouse click to the active screen."""
         x, y = pos
         if self.state == "menu":
             if 320 <= x <= 640:
@@ -600,6 +613,7 @@ class NeonRunner:
                 self.state = "hub"
 
     def handle_touch(self, start: tuple[float, float], end: tuple[float, float]) -> None:
+        """Translate a touch gesture into a gameplay action."""
         if self.state != "playing":
             return
         dx, dy = end[0]-start[0], end[1]-start[1]
@@ -615,6 +629,7 @@ class NeonRunner:
             self.touch_action("slide" if dy > 0 else "jump")
 
     def touch_action(self, action: str) -> None:
+        """Apply a touch-screen gameplay action."""
         if action == "left":
             previous_lane = self.lane
             self.lane = max(0, self.lane - 1)
@@ -654,6 +669,7 @@ class NeonRunner:
                 self.telemetry.lane_change_successes += 1
 
     def activate_dash(self) -> None:
+        """Start a dash when the charge meter is full."""
         if self.dash_charge < 100:
             return
         self.dash_charge = 0
@@ -665,10 +681,12 @@ class NeonRunner:
         self.audio.play("dash")
 
     def open_hub_page(self, selection: int) -> None:
+        """Open the records page selected in the hub."""
         self.state = ("missions", "achievements", "statistics", "profile",
                       "worlds", "challenge_history")[selection]
 
     def choose_world(self) -> None:
+        """Select the highlighted world if it is unlocked."""
         world = WORLDS[self.world_selection]
         if self.profile_level < world.unlock_level:
             self.message = f"UNLOCK AT PROFILE LEVEL {world.unlock_level}"
@@ -683,12 +701,19 @@ class NeonRunner:
         self.state = "hub"
 
     def change_comfort(self, index: int) -> None:
-        if index == 0: self.reduced_motion = not self.reduced_motion
-        elif index == 1: self.calm_mode = not self.calm_mode
-        elif index == 2: self.music_level = (self.music_level + 1) % 4
-        elif index == 3: self.sfx_level = (self.sfx_level + 1) % 4
-        elif index == 4: self.break_reminders = not self.break_reminders
-        elif index == 5: self.touch_controls = not self.touch_controls
+        """Cycle a comfort setting and persist the updated preference."""
+        if index == 0:
+            self.reduced_motion = not self.reduced_motion
+        elif index == 1:
+            self.calm_mode = not self.calm_mode
+        elif index == 2:
+            self.music_level = (self.music_level + 1) % 4
+        elif index == 3:
+            self.sfx_level = (self.sfx_level + 1) % 4
+        elif index == 4:
+            self.break_reminders = not self.break_reminders
+        elif index == 5:
+            self.touch_controls = not self.touch_controls
         elif index == 6:
             preferences = tuple(AdaptiveDifficulty.PREFERENCES)
             current = preferences.index(self.adaptive.preference)
@@ -697,8 +722,10 @@ class NeonRunner:
             modes = ("best", "previous", "archive", "off") if self.ghost_archive else ("best", "previous", "off")
             self.ghost_source = modes[(modes.index(self.ghost_source) + 1) % len(modes)]
             self.ghost_visible = self.ghost_source != "off"
-        elif index == 8: self.reduced_flashing = not self.reduced_flashing
-        elif index == 9: self.control_sensitivity = (self.control_sensitivity + 1) % 3
+        elif index == 8:
+            self.reduced_flashing = not self.reduced_flashing
+        elif index == 9:
+            self.control_sensitivity = (self.control_sensitivity + 1) % 3
         elif index == 10:
             self.combo_enabled = not self.combo_enabled
             if not self.combo_enabled:
@@ -711,12 +738,14 @@ class NeonRunner:
         self.persist()
 
     def select_ghost_archive(self, direction: int) -> None:
+        """Move the selection through the saved ghost archive."""
         if not self.ghost_archive:
             return
         self.ghost_archive_selection = (self.ghost_archive_selection + direction) % len(self.ghost_archive)
         self.persist()
 
     def selected_ghost_replay(self) -> GhostReplay | None:
+        """Return the replay selected by the ghost visibility setting."""
         if self.ghost_source == "best":
             return self.best_ghost
         if self.ghost_source == "previous":
@@ -726,6 +755,7 @@ class NeonRunner:
         return None
 
     def menu_action(self, selection: int) -> None:
+        """Activate the selected title-menu item."""
         if selection == 0:
             if not self.tutorial_seen:
                 self.tutorial_page = 0
@@ -750,6 +780,7 @@ class NeonRunner:
             sys.exit()
 
     def begin_run(self) -> None:
+        """Reset transient state and start a new run."""
         self.reset_run()
         self.run_missions = self.active_missions
         self.adaptive.decisions = 0
@@ -761,9 +792,11 @@ class NeonRunner:
         self.persist()
 
     def upgrade_cost(self, key: str) -> int:
+        """Calculate the cost of the next level for an upgrade."""
         return 10 + self.upgrades.get(key, 0) * 10
 
     def buy_upgrade(self, selection: int) -> None:
+        """Purchase the selected upgrade when it is affordable."""
         key, label, _, maximum = UPGRADES[selection]
         level = self.upgrades.get(key, 0)
         cost = self.upgrade_cost(key)
@@ -779,6 +812,7 @@ class NeonRunner:
             self.persist()
 
     def choose_avatar(self) -> None:
+        """Unlock or select the highlighted runner."""
         avatar = AVATARS[self.avatar_selection]
         avatar_id = avatar["id"]
         if avatar_id not in self.unlocked_avatars:
@@ -793,6 +827,7 @@ class NeonRunner:
         self.audio.play("level")
 
     def play_key(self, key: int) -> None:
+        """Handle keyboard controls during gameplay."""
         if key in (pygame.K_LEFT, pygame.K_a):
             previous_lane = self.lane
             self.lane = max(0, self.lane - 1)
@@ -823,6 +858,7 @@ class NeonRunner:
             self.state = "paused"
 
     def update(self, dt: float) -> None:
+        """Advance gameplay systems by one frame."""
         self.particles.update(max(0.0, dt))
         self.combo.update(dt)
         self.shake_time = max(0.0, self.shake_time - max(0.0, dt))
@@ -915,10 +951,9 @@ class NeonRunner:
                 self.spawn_timer = spawn_gap * random.uniform(0.86, 1.14)
 
         move_speed = self.speed * (1.9 if self.dash_time > 0 else 1.25 if self.overdrive_time > 0 else 1)
-        ghost = self.best_ghost if self.ghost_visible and self.best_ghost.samples else None
         self.ghost.record(self.elapsed, self.lane,
                           "jump" if self.jump_time > 0 else "slide" if self.slide_time > 0 else "run",
-                          self.jump_time, self.slide_time, self.dash_time)
+                          self.jump_time, self.slide_time, self.dash_time > 0)
         for obj in self.entities[:]:
             previous_y = obj["y"]
             obj["y"] += move_speed * dt
@@ -982,6 +1017,7 @@ class NeonRunner:
             self.tutorial_hint_timer = 9 - self.elapsed
 
     def spawn_pattern(self) -> None:
+        """Add a procedurally generated entity pattern with a safe route."""
         world = active_world(self.distance, self.profile_level, self.world_id)
         movement_speed = self.speed * (1.9 if self.dash_time > 0 else
                                        1.25 if self.overdrive_time > 0 else 1.0)
@@ -1000,6 +1036,7 @@ class NeonRunner:
         # placing a hazard or a tempting pickup into a compromised route.
 
     def add_combo_event(self, base_points: int, event: str) -> int:
+        """Award points for an action and update the combo chain."""
         if not self.combo_enabled:
             return 0
         bonus = self.combo.trigger(base_points)
@@ -1011,12 +1048,15 @@ class NeonRunner:
         return bonus
 
     def start_screen_shake(self, duration: float, strength: float) -> None:
+        """Start an impact shake when accessibility settings allow it."""
         if self.screen_shake_enabled and not self.reduced_motion:
             self.shake_time = max(self.shake_time, duration)
             self.shake_strength = max(self.shake_strength, strength)
 
     def pickup(self, obj: dict) -> None:
+        """Apply the score, power-up, and visual effect for a pickup."""
         kind = obj["kind"]
+        token_points = 0
         effect_color = (GOLD if kind == "coin" else
                         {"battery": CYAN, "shield": GREEN, "magnet": PINK,
                          "score_boost": GOLD, "overdrive": CYAN,
@@ -1068,6 +1108,7 @@ class NeonRunner:
         self.add_combo_event(token_points if kind == "coin" else 20, "PICKUP")
 
     def take_hit(self, collision_kind: str = "hazard") -> None:
+        """Apply collision consequences, including shield absorption."""
         if self.hit_cooldown > 0:
             return
         self.particles.emit_burst(self.lane_x(self.draw_lane, PLAYER_Y), PLAYER_Y - 30,
@@ -1094,6 +1135,7 @@ class NeonRunner:
             self.finish_run()
 
     def finish_run(self) -> None:
+        """Finalize the run, record results, and grant earned rewards."""
         if self.run_finalized:
             return
         self.run_finalized = True
@@ -1222,13 +1264,16 @@ class NeonRunner:
         self.persist()
 
     def lane_width(self, y: float) -> float:
+        """Return the perspective lane width at a screen height."""
         depth = max(0, min(1, (y - 150) / 375))
         return 39 + 82 * depth
 
     def lane_x(self, lane: float, y: float) -> float:
+        """Convert a lane and screen height into its screen x-coordinate."""
         return WIDTH * 0.5 + (lane - 1) * self.lane_width(y)
 
     def draw(self) -> None:
+        """Render the active game screen and display the completed frame."""
         self.draw_city()
         if self.state == "menu":
             self.draw_menu()
@@ -1263,6 +1308,7 @@ class NeonRunner:
         pygame.display.flip()
 
     def draw_city(self) -> None:
+        """Render the current skyline, atmosphere, and city lighting."""
         self.screen.fill((7, 10, 24))
         world = active_world(getattr(self, "distance", 0), self.profile_level, self.world_id)
         theme = world.accent
@@ -1392,6 +1438,7 @@ class NeonRunner:
         self.screen.blit(self.fx_surface, (0, 0))
 
     def draw_run(self) -> None:
+        """Render gameplay content with the optional camera offset."""
         shake_active = (self.screen_shake_enabled and not self.reduced_motion
                         and self.shake_time > 0 and self.state in ("playing", "gameover"))
         camera_active = self.state == "playing" and not self.reduced_motion
@@ -1413,6 +1460,7 @@ class NeonRunner:
         target.blit(self.shake_surface, (round(offset_x), round(offset_y)))
 
     def draw_run_content(self) -> None:
+        """Render the track, entities, runner, and gameplay overlays."""
         # Receding rail corridor and track-bed.
         world = active_world(self.distance, self.profile_level, self.world_id)
         theme = world.accent
@@ -1504,6 +1552,7 @@ class NeonRunner:
             self.pill(self.message, (WIDTH//2, 153), GOLD)
 
     def draw_entity(self, obj: dict) -> None:
+        """Render one entity at its perspective-adjusted position."""
         y = obj["y"]
         depth = max(0.04, min(1.2, (y - 140) / 320))
         cx = self.lane_x(obj["lane"], y)
@@ -1581,7 +1630,9 @@ class NeonRunner:
                 pygame.draw.lines(self.screen,PINK,False,points,max(1,int(2*scale)))
         elif kind == "fence":
             w,h=lane_w*.90,58*scale
-            left=int(cx-w/2); top=int(y-h); thick=max(2,int(4*scale))
+            left = int(cx - w / 2)
+            top = int(y - h)
+            thick = max(2, int(4 * scale))
             for side in (-1,1):
                 px=int(cx+side*w*.42)
                 pygame.draw.rect(self.screen,(41,76,99),(px-thick,top,thick,int(h)))
@@ -1606,6 +1657,7 @@ class NeonRunner:
             pygame.draw.circle(self.screen,GOLD,(rect.right-int(w*.22),rect.bottom-int(h*.20)),max(2,int(4*scale)))
 
     def draw_runner(self) -> None:
+        """Render the selected runner and its current animation."""
         center_x = self.lane_x(self.draw_lane, PLAYER_Y)
         avatar = next(item for item in AVATARS if item["id"] == self.avatar_id)
         jacket, trim, hair = avatar["jacket"], avatar["trim"], avatar["hair"]
@@ -1709,6 +1761,7 @@ class NeonRunner:
         self.screen.blit(ghost, (cx - ghost.get_width()//2, base_y - ghost.get_height()))
 
     def animation_asset_key(self, state: str) -> str:
+        """Choose the best available sprite animation for a character state."""
         aliases = {"idle":"run", "jump_prep":"jump", "fall":"jump", "landing":"run",
                    "dash":"run", "hit":"run", "shield":"run", "powerup":"run",
                    "defeat":"run", "victory":"run", "milestone":"run"}
@@ -1720,6 +1773,7 @@ class NeonRunner:
         return f"{self.avatar_id}.{aliases.get(state, state)}"
 
     def draw_hud(self) -> None:
+        """Render the score, lives, booster states, and dash meter."""
         self.panel((22,18,256,79), radius=18)
         self.text("SCORE",44,31,CYAN,self.small)
         self.text(f"{self.score:07d}",42,52,WHITE,self.huge)
@@ -1756,6 +1810,7 @@ class NeonRunner:
         self.text("P / ESC  PAUSE",780,486,MUTED,self.small)
 
     def draw_menu(self) -> None:
+        """Render the title screen and main navigation."""
         # Title area deliberately leaves the track visible as a game preview.
         self.draw_track_preview()
         shade = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
@@ -1780,8 +1835,11 @@ class NeonRunner:
                   480,494,MUTED,self.small,center=True)
 
     def draw_comfort(self) -> None:
+        """Render accessibility and control settings."""
         self.draw_track_preview()
-        shade=pygame.Surface((WIDTH,HEIGHT),pygame.SRCALPHA); shade.fill((4,8,19,178)); self.screen.blit(shade,(0,0))
+        shade = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        shade.fill((4, 8, 19, 178))
+        self.screen.blit(shade, (0, 0))
         self.panel((172,26,616,490),radius=25,outline=(51,109,139))
         self.text("COMFORT & CONTROLS",480,58,CYAN,self.huge,center=True)
         if self.ghost_source == "archive" and self.ghost_archive:
@@ -1813,14 +1871,18 @@ class NeonRunner:
         self.text("UP/DOWN SELECT   ENTER/CLICK CHANGE   ESC BACK",480,490,MUTED,self.small,center=True)
 
     def draw_touch_controls(self) -> None:
+        """Render the optional touch-action buttons."""
         for cx,label in ((350,"LEFT"),(430,"JUMP"),(510,"SLIDE"),(590,"RIGHT"),(670,"DASH")):
             pygame.draw.circle(self.screen,(12,24,39),(cx,503),31)
             pygame.draw.circle(self.screen,(89,174,199),(cx,503),31,2)
             self.text(label,cx,503,WHITE,self.small,center=True)
 
     def draw_hub(self) -> None:
+        """Render the missions and records navigation."""
         self.draw_track_preview()
-        shade=pygame.Surface((WIDTH,HEIGHT),pygame.SRCALPHA); shade.fill((4,8,19,178)); self.screen.blit(shade,(0,0))
+        shade = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        shade.fill((4, 8, 19, 178))
+        self.screen.blit(shade, (0, 0))
         self.panel((172,36,616,468),radius=25,outline=(51,109,139))
         self.text("NIGHT SHIFT RECORDS",480,75,CYAN,self.huge,center=True)
         labels=("MISSIONS", "ACHIEVEMENTS", "STATISTICS", "RUNNER PROFILE", "WORLDS", "CHALLENGE HISTORY")
@@ -1839,6 +1901,7 @@ class NeonRunner:
         self.text("UP/DOWN SELECT   ENTER OPEN   ESC BACK",480,487,MUTED,self.small,center=True)
 
     def draw_worlds(self) -> None:
+        """Render the world selection preview and progression status."""
         world = WORLDS[self.world_selection]
         previous = self.world_id
         previous_level = self.profile_level
@@ -1872,6 +1935,7 @@ class NeonRunner:
         self.text(">", 710, 329, world.accent, self.title, center=True)
 
     def draw_challenge_history(self) -> None:
+        """Render the completed daily and weekly challenge history."""
         goals = {goal.key: goal for goal in (*DAILY_CHALLENGES, *WEEKLY_CHALLENGES)}
         rows = []
         for item in reversed(self.challenge_history[-5:]):
@@ -1885,6 +1949,7 @@ class NeonRunner:
         self.draw_goal_page("CHALLENGE HISTORY", rows)
 
     def draw_missions(self) -> None:
+        """Render active one-run and career missions."""
         rows=[]
         values={"distance":self.last_run_distance,"coins":self.last_run_coins,
                 "dash_clears":self.last_run_dash_clears}
@@ -1916,6 +1981,7 @@ class NeonRunner:
         self.draw_goal_page("MISSIONS & CONTRACTS",rows)
 
     def draw_achievements(self) -> None:
+        """Render lifetime achievement progress."""
         stats={"total_runs":self.total_runs,"lifetime_distance":self.lifetime_distance,
                "lifetime_coins":self.lifetime_coins,"lifetime_dash_clears":self.lifetime_dash_clears}
         rows=[]
@@ -1927,8 +1993,11 @@ class NeonRunner:
         self.draw_goal_page("ACHIEVEMENTS",rows)
 
     def draw_goal_page(self,title:str,rows:list[tuple[str,str,str,bool]])->None:
+        """Render a page of progress goals and their completion status."""
         self.draw_track_preview()
-        shade=pygame.Surface((WIDTH,HEIGHT),pygame.SRCALPHA); shade.fill((4,8,19,184)); self.screen.blit(shade,(0,0))
+        shade = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        shade.fill((4, 8, 19, 184))
+        self.screen.blit(shade, (0, 0))
         self.panel((145,30,670,480),radius=25,outline=(51,109,139))
         self.text(title,480,65,CYAN,self.huge,center=True)
         compact = len(rows) > 5
@@ -1944,6 +2013,7 @@ class NeonRunner:
         self.text("ESC / BACKSPACE / CLICK BELOW TO BACK",480,480,MUTED,self.small,center=True)
 
     def draw_statistics(self) -> None:
+        """Render recent and lifetime run statistics."""
         recent = self.analytics.runs[-5:]
         jump_count = sum(run.get("jumps", 0) for run in recent)
         jump_success = sum(run.get("jump_successes", 0) for run in recent)
@@ -1966,6 +2036,7 @@ class NeonRunner:
         ))
 
     def draw_profile(self) -> None:
+        """Render the runner profile and progression details."""
         self.draw_info_page("RUNNER PROFILE",(
             ("SELECTED RUNNER",self.avatar_id.upper()),
             ("PROFILE LEVEL",str(self.profile_level)),
@@ -1976,8 +2047,11 @@ class NeonRunner:
         ))
 
     def draw_info_page(self,title:str,rows:tuple[tuple[str,str],...])->None:
+        """Render a titled list of profile information rows."""
         self.draw_track_preview()
-        shade=pygame.Surface((WIDTH,HEIGHT),pygame.SRCALPHA); shade.fill((4,8,19,184)); self.screen.blit(shade,(0,0))
+        shade = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        shade.fill((4, 8, 19, 184))
+        self.screen.blit(shade, (0, 0))
         self.panel((185,25,590,490),radius=25,outline=(51,109,139))
         self.text(title,480,60,CYAN,self.huge,center=True)
         for index,(label,value) in enumerate(rows):
@@ -1989,8 +2063,11 @@ class NeonRunner:
         self.text("ESC / BACKSPACE / CLICK BELOW TO BACK",480,481,MUTED,self.small,center=True)
 
     def draw_upgrades(self) -> None:
+        """Render the upgrade shop and available purchases."""
         self.draw_track_preview()
-        shade=pygame.Surface((WIDTH,HEIGHT),pygame.SRCALPHA); shade.fill((4,8,19,176)); self.screen.blit(shade,(0,0))
+        shade = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        shade.fill((4, 8, 19, 176))
+        self.screen.blit(shade, (0, 0))
         self.panel((172,26,616,490),radius=25,outline=(51,109,139))
         self.text("NEON GARAGE",480,54,CYAN,self.huge,center=True)
         self.text(f"UPGRADE POINTS  {self.upgrade_points}",480,91,GOLD,self.body,center=True)
@@ -2009,8 +2086,11 @@ class NeonRunner:
             self.text("UP/DOWN SELECT   ENTER BUY   CLICK HERE TO BACK",480,483,MUTED,self.small,center=True)
 
     def draw_avatars(self) -> None:
+        """Render runner selection and unlock information."""
         self.draw_track_preview()
-        shade=pygame.Surface((WIDTH,HEIGHT),pygame.SRCALPHA); shade.fill((4,8,19,176)); self.screen.blit(shade,(0,0))
+        shade = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        shade.fill((4, 8, 19, 176))
+        self.screen.blit(shade, (0, 0))
         self.panel((205,28,550,486),radius=25,outline=(51,109,139))
         avatar=AVATARS[self.avatar_selection]
         self.text("RUNNER SELECT",480,58,CYAN,self.huge,center=True)
@@ -2033,6 +2113,7 @@ class NeonRunner:
             self.text(f"WALLET  {self.upgrade_points} PTS   /   CLICK BELOW TO BACK",480,494,GOLD,self.small,center=True)
 
     def draw_avatar_preview(self,avatar:dict,x:int,y:int)->None:
+        """Render the procedural preview for one runner."""
         jacket,trim,hair=avatar["jacket"],avatar["trim"],avatar["hair"]
         pygame.draw.ellipse(self.screen,(3,6,14),(x-54,y+112,108,20))
         pygame.draw.rect(self.screen,(24,28,45),(x-31,y+76,24,48),border_radius=7)
@@ -2049,6 +2130,7 @@ class NeonRunner:
         pygame.draw.rect(self.screen,WHITE,(x+22,y+34,7,7))
 
     def draw_track_preview(self) -> None:
+        """Render a decorative gameplay track for menu previews."""
         self.draw_run_background_only()
         # Decorative electric street cars and a few floating tokens.
         for lane in (0,2):
@@ -2063,6 +2145,7 @@ class NeonRunner:
             pygame.draw.circle(self.screen,GOLD,(x,y),10)
 
     def draw_run_background_only(self) -> None:
+        """Render the city and track without active game entities."""
         # Reuse city dressing; road is kept unoccupied in the title preview.
         self.draw_city()
         pygame.draw.polygon(self.screen,(17,24,39),[(422,150),(538,150),(910,540),(50,540)])
@@ -2072,6 +2155,7 @@ class NeonRunner:
             pygame.draw.line(self.screen,(60,72,94),(480+boundary*40,150),(480+boundary*121,540),2)
 
     def draw_tutorial(self) -> None:
+        """Render the current tutorial page."""
         self.draw_track_preview()
         shade = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         shade.fill((5,8,19,165))
@@ -2102,15 +2186,18 @@ class NeonRunner:
         self.text("ESC  BACK TO TITLE",480,485,MUTED,self.small,center=True)
 
     def control_card(self,x:int,y:int,key:str,label:str,color:tuple[int,int,int])->None:
+        """Render a tutorial card for one control."""
         self.panel((x,y,140,82),radius=14,fill=(17,28,48),outline=(54,72,97))
         self.text(key,x+70,y+12,color,self.body,center=True)
         self.text(label,x+70,y+52,MUTED,self.small,center=True)
 
     def draw_pause(self) -> None:
+        """Render the pause overlay."""
         self.overlay_card("PAUSED", "Take a moment. Resume when you are ready.",
                           "ENTER / R  RESUME RUN", "U  UPGRADES     C  RUNNER     Q  TITLE")
 
     def draw_gameover(self) -> None:
+        """Render the game-over summary and run statistics."""
         self.overlay_card("RUN OVER", f"{self.score:,} SCORE   /   {self.coins} TOKENS   /   +{self.coins} UPGRADE PTS",
                           "ENTER / R  RUN IT BACK", f"BEST {self.best_score:,}   U UPGRADES   ESC TITLE")
         powerups = sum(self.telemetry.powerups.values())
@@ -2124,7 +2211,10 @@ class NeonRunner:
         self.text(record + "  /  " + self.analytics.coach(), 480, 416, MUTED, self.small, center=True)
 
     def overlay_card(self,title:str,subtitle:str,primary:str,secondary:str)->None:
-        shade=pygame.Surface((WIDTH,HEIGHT),pygame.SRCALPHA); shade.fill((4,7,18,175)); self.screen.blit(shade,(0,0))
+        """Render a modal card with its title and action prompts."""
+        shade = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        shade.fill((4, 7, 18, 175))
+        self.screen.blit(shade, (0, 0))
         self.panel((260,130,440,300),radius=26,outline=CYAN)
         self.text(title,480,165,WHITE,self.huge,center=True)
         self.text(subtitle,480,228,MUTED,self.body,center=True)
@@ -2134,18 +2224,22 @@ class NeonRunner:
 
     def panel(self,rect:tuple[int,int,int,int],radius:int=12,
               fill:tuple[int,int,int]=(13,20,38),outline:tuple[int,int,int]|None=None)->None:
+        """Draw a panel with an optional outline."""
         pygame.draw.rect(self.screen,fill,rect,border_radius=radius)
         if outline:
             pygame.draw.rect(self.screen,outline,rect,width=2,border_radius=radius)
 
     def pill(self,label:str,center:tuple[int,int],color:tuple[int,int,int])->None:
+        """Draw a centered status label."""
         surf=self.font.render(label,True,WHITE)
         rect=surf.get_rect(center=center).inflate(30,17)
-        self.panel(rect,12,fill=(12,20,36),outline=color)
+        self.panel((rect.x, rect.y, rect.width, rect.height), 12,
+                   fill=(12,20,36), outline=color)
         self.screen.blit(surf,surf.get_rect(center=center))
 
     def text(self,label:str,x:float,y:float,color:tuple[int,int,int],font:pygame.font.Font,
              center:bool=False)->None:
+        """Render text at the requested screen position."""
         surface=font.render(label,True,color)
         rect=surface.get_rect()
         if center:

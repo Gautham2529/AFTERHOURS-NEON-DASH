@@ -1,0 +1,11 @@
+[MAIN]
+generated-members=pygame.*
+
+[CLASSES]
+defining-attr-methods=__init__,__new__,setUp,asyncSetUp,__post_init__,reset_run
+
+[DESIGN]
+max-module-lines=2300
+
+[FORMAT]
+max-line-length=160
