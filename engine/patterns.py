@@ -24,6 +24,7 @@ class PatternGenerator:
 
     def generate(self, battery_level: int = 0, intensity: float = 1.0,
                  hazard_pool: tuple[str, ...] | None = None) -> list[dict]:
+        """Generate a hazard or pickup pattern and update recent-pattern history."""
         hazards = tuple(item for item in (hazard_pool or self.HAZARDS) if item in self.HAZARDS)
         if not hazards:
             hazards = self.HAZARDS
@@ -68,6 +69,17 @@ class PatternGenerator:
         safe_speed = max(1.0, float(speed))
         window = max(0.0, float(reaction_window))
         switch_time = max(0.0, float(lane_change_seconds))
+        events = cls._hazard_crossings(patterns, safe_speed)
+        if events is None:
+            return False
+        groups = cls._group_crossings(events)
+        return cls._route_exists(groups, player_lane, window, switch_time)
+
+    @classmethod
+    def _hazard_crossings(
+        cls, patterns: list[dict] | tuple[dict, ...], safe_speed: float,
+    ) -> list[tuple[float, int]] | None:
+        """Convert valid hazard entities into crossing-time events."""
         events: list[tuple[float, int]] = []
         for item in patterns:
             if not isinstance(item, dict) or item.get("kind") not in cls.HAZARD_KINDS:
@@ -76,19 +88,28 @@ class PatternGenerator:
                 lane = int(item.get("lane", -1))
                 y = float(item.get("y", 0))
             except (TypeError, ValueError, OverflowError):
-                return False
+                return None
             if lane not in (0, 1, 2) or y >= 432:
                 continue
             crossing_time = max(0.0, (432.0 - y) / safe_speed)
             events.append((crossing_time, lane))
+        return events
 
+    @staticmethod
+    def _group_crossings(events: list[tuple[float, int]]) -> list[tuple[float, set[int]]]:
+        """Merge hazard events arriving within 80 ms into the same row."""
         groups: list[tuple[float, set[int]]] = []
         for crossing_time, lane in sorted(events):
             if groups and crossing_time - groups[-1][0] <= .08:
                 groups[-1][1].add(lane)
             else:
                 groups.append((crossing_time, {lane}))
+        return groups
 
+    @staticmethod
+    def _route_exists(groups: list[tuple[float, set[int]]], player_lane: int,
+                      window: float, switch_time: float) -> bool:
+        """Check whether any collision-free lane remains reachable per hazard row."""
         if not groups:
             return True
         reachable = {max(0, min(2, int(player_lane)))}

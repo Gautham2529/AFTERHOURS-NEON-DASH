@@ -7,6 +7,8 @@ import pygame
 
 
 class AudioBus:
+    """Manage synthesized background music and rate-limited sound effects."""
+
     RATE = 22050
 
     def __init__(self) -> None:
@@ -89,6 +91,7 @@ class AudioBus:
         return pygame.mixer.Sound(buffer=data.tobytes())
 
     def play(self, name: str) -> None:
+        """Play a known sound effect when audio is enabled and not muted."""
         if self.enabled and not self.muted and name in self.effects:
             now = pygame.time.get_ticks() / 1000
             cooldown = .55 if name == "near_miss" else .12 if name == "coin" else 0.0
@@ -103,6 +106,7 @@ class AudioBus:
             self.effects[name].play()
 
     def set_music_volume(self, value: float) -> None:
+        """Set the backing-music volume, clamped to the supported range."""
         self.music_volume = max(0.0, min(0.5, value))
         if self.enabled:
             self.base_channel.set_volume(self.music_volume * (.82 + .18 * self.intensity))
@@ -116,9 +120,11 @@ class AudioBus:
             self.boost_channel.set_volume(self.music_volume * (.58 + .42 * self.intensity) * 0.72)
 
     def set_sfx_volume(self, value: float) -> None:
+        """Set the sound-effect volume, clamped to the supported range."""
         self.sfx_volume = max(0.0, min(0.5, value))
 
     def set_boost(self, active: bool) -> None:
+        """Start or stop the boost music layer."""
         if not self.enabled or self.muted:
             return
         if active and not self.boost_channel.get_busy():
@@ -140,6 +146,7 @@ class AudioBus:
             pass
 
     def toggle_mute(self) -> None:
+        """Toggle music playback without changing the configured volumes."""
         self.muted = not self.muted
         if self.enabled:
             if self.muted:
@@ -147,4 +154,3 @@ class AudioBus:
                 self.boost_channel.stop()
             elif not self.base_channel.get_busy():
                 self.base_channel.play(self.base, loops=-1)
-

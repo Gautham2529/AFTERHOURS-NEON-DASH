@@ -45,6 +45,7 @@ class AssetPack:
         self._backgrounds = self._mapping("backgrounds")
 
     def _mapping(self, key: str) -> dict[str, Any]:
+        """Return a manifest section when it is a mapping."""
         value = self.manifest.get(key, {})
         return value if isinstance(value, dict) else {}
 
@@ -74,6 +75,7 @@ class AssetPack:
             return cls()
 
     def _read(self, relative: str) -> bytes:
+        """Read an asset relative to the configured directory or package."""
         if self.package:
             target = Path(self.resource_root, relative)
             return resources.files(self.package).joinpath(*target.parts).read_bytes()
@@ -82,6 +84,7 @@ class AssetPack:
         raise FileNotFoundError("No asset pack is configured")
 
     def texture(self, name: str) -> pygame.Surface | None:
+        """Load and cache a named texture, returning None when unavailable."""
         if name in self.textures:
             return self.textures[name]
         relative = self._texture_paths.get(name)
@@ -96,6 +99,7 @@ class AssetPack:
         return image
 
     def _crop(self, texture_name: str, frame: list[int] | tuple[int, ...]) -> pygame.Surface | None:
+        """Return a cached subsurface for a valid four-value frame rectangle."""
         texture = self.texture(texture_name)
         if texture is None or not isinstance(frame, (tuple, list)) or len(frame) != 4:
             return None
@@ -149,6 +153,7 @@ class AssetPack:
         return isinstance(entry, dict) and bool(entry.get("frames"))
 
     def sprite(self, name: str) -> pygame.Surface | None:
+        """Resolve a named sprite from the pack manifest."""
         item = self._sprites.get(name)
         if not isinstance(item, (dict, str)):
             return None
@@ -157,6 +162,7 @@ class AssetPack:
         return self._crop(item.get("texture", ""), item.get("frame", ()))
 
     def background(self, name: str) -> pygame.Surface | None:
+        """Resolve a named background image or cropped texture."""
         source = self._backgrounds.get(name)
         if not isinstance(source, (dict, str)):
             return None
@@ -178,6 +184,7 @@ class AnimatedSprite(pygame.sprite.Sprite):
         self.set_animation(animation)
 
     def set_animation(self, animation: str) -> None:
+        """Select an animation and reset its elapsed time when it changes."""
         if animation != self.animation:
             self.animation = animation
             self.elapsed = 0.0
@@ -189,6 +196,7 @@ class AnimatedSprite(pygame.sprite.Sprite):
         self._select_frame()
 
     def update(self, dt: float = 0.0) -> None:
+        """Advance the animation clock by a nonnegative time delta."""
         self.elapsed += max(0.0, dt)
         self._select_frame()
 

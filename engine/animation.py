@@ -20,6 +20,7 @@ class CharacterAnimationController:
         self.revision = 0
 
     def trigger(self, state: str) -> bool:
+        """Start a recognized reaction unless a higher-priority one is active."""
         duration = self.DURATIONS.get(state)
         if duration is None or self.PRIORITIES[state] < self.priority:
             return False
@@ -30,6 +31,7 @@ class CharacterAnimationController:
         return True
 
     def update(self, dt: float, locomotion: str) -> str:
+        """Advance the active reaction and return its current animation state."""
         if locomotion not in {"idle", "run", "jump", "fall", "slide", "dash"}:
             locomotion = "run"
         if self.timer > 0:

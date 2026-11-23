@@ -2237,7 +2237,7 @@ class NeonRunner:
                    fill=(12,20,36), outline=color)
         self.screen.blit(surf,surf.get_rect(center=center))
 
-    def text(self,label:str,x:float,y:float,color:tuple[int,int,int],font:pygame.font.Font,
+    def text(self,label:str,x:float,y:float,color:tuple[int,int,int],font:pygame.font.Font,  # pylint: disable=too-many-arguments,too-many-positional-arguments
              center:bool=False)->None:
         """Render text at the requested screen position."""
         surface=font.render(label,True,color)

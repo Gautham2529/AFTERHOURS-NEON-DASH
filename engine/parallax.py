@@ -16,6 +16,7 @@ class SkylineLayer:
                  base_y: int = 275) -> None:
         self.depth = depth
         self.base_y = base_y
+        self._offset = 0.0
         rng = random.Random(seed)
         self.buildings: list[tuple[int, int, int, int]] = []
         x = 0
@@ -28,11 +29,12 @@ class SkylineLayer:
     @property
     def offset(self) -> float:
         """Most recent offset, set by draw for inspection/debug overlays."""
-        return getattr(self, "_offset", 0.0)
+        return self._offset
 
     def draw(self, target: pygame.Surface, distance: float,
              skyline_color: tuple[int, int, int], accent: tuple[int, int, int],
              reduced_motion: bool = False) -> None:
+        """Draw the repeating skyline at its distance-based scroll position."""
         offset = 0.0 if reduced_motion else (max(0.0, distance) * self.depth) % self.TILE_WIDTH
         self._offset = offset
         base_color = tuple(max(0, min(255, round(channel * .68))) for channel in skyline_color)
