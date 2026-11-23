@@ -285,6 +285,24 @@ def test_menu_comfort_and_live_run_render_without_error(runner):
     runner.draw()
 
 
+def test_vector_gameplay_render_preserves_simulation_state(runner):
+    runner.begin_run()
+    runner.score = 4321
+    runner.entities = [
+        {"kind": "barrier", "lane": 0, "y": 350.0},
+        {"kind": "coin", "lane": 2, "y": 280.0},
+    ]
+    before = (runner.lane, runner.score, runner.coins, runner.distance,
+              tuple((item["kind"], item["lane"], item["y"]) for item in runner.entities))
+
+    runner.draw()
+
+    after = (runner.lane, runner.score, runner.coins, runner.distance,
+             tuple((item["kind"], item["lane"], item["y"]) for item in runner.entities))
+    assert after == before
+    assert runner.screen.get_size() == (960, 540)
+
+
 def test_world_selection_respects_unlocks_and_persists(runner):
     runner.world_selection = 1
     runner.state = "worlds"

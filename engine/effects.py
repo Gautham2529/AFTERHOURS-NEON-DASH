@@ -5,6 +5,8 @@ import random
 
 import pygame
 
+from engine.svg_art import glow_surface
+
 
 class ParticlePool:
     CAPACITY = 64
@@ -74,6 +76,6 @@ class ParticlePool:
             center = (int(particle["x"]), int(particle["y"]))
             color = particle["color"]
             if radius > 1:
-                halo = tuple(channel // 3 for channel in color)
-                pygame.draw.circle(target, halo, center, radius + 2)
+                halo = glow_surface(color, 24)
+                target.blit(halo, halo.get_rect(center=center))
             pygame.draw.circle(target, color, center, radius)

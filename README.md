@@ -255,7 +255,7 @@ This separates visual assets from the game logic and allows art packs to replace
 - Pickup sprites.
 - City backgrounds.
 
-The asset system uses Pygame-ce sprite types and Python's standard `importlib.resources` module. No additional art-specific runtime dependency is required.
+The asset system uses Pygame-ce sprite types and Python's standard `importlib.resources` module. The built-in renderer also uses cached SVG artwork rasterized by Pygame-ce; no additional art-specific runtime dependency is required.
 
 ### 📦 Loading an Asset Pack
 
@@ -284,7 +284,7 @@ For a local asset pack, point the same environment variable to its manifest file
 
 Manifests define:
 
-- Textures and their PNG file locations.
+- Textures and their PNG or SVG file locations.
 - Animation frames and frame rates.
 - Sprite images and atlas regions.
 - Background images.
@@ -368,6 +368,7 @@ AFTERHOURS-NEON-DASH/
 ├── engine/
 │   ├── game.py
 │   ├── assets.py
+│   ├── svg_art.py
 │   ├── animation.py
 │   ├── patterns.py
 │   ├── progression.py
@@ -398,6 +399,7 @@ AFTERHOURS-NEON-DASH/
 | `main.py` | Game launcher |
 | `engine/game.py` | Game loop, input, collision orchestration, HUD, and screens |
 | `engine/assets.py` | Package-aware spritesheet, animation, sprite, and background loader |
+| `engine/svg_art.py` | Cached built-in SVG art rasterized to Pygame surfaces |
 | `engine/animation.py` | Movement and timed reaction state controller |
 | `engine/patterns.py` | Procedural obstacle and pickup pattern generation |
 | `engine/progression.py` | Missions, daily challenges, and achievements |

@@ -6,6 +6,8 @@ import random
 
 import pygame
 
+from engine.svg_art import skyline_surface
+
 
 class SkylineLayer:
     """A repeating skyline strip that scrolls at its own depth speed."""
@@ -37,28 +39,13 @@ class SkylineLayer:
         """Draw the repeating skyline at its distance-based scroll position."""
         offset = 0.0 if reduced_motion else (max(0.0, distance) * self.depth) % self.TILE_WIDTH
         self._offset = offset
-        base_color = tuple(max(0, min(255, round(channel * .68))) for channel in skyline_color)
+        artwork = skyline_surface(tuple(self.buildings), self.TILE_WIDTH, self.base_y,
+                                  (skyline_color, accent))
         for tile_x in (-self.TILE_WIDTH, 0, self.TILE_WIDTH):
             tile_origin = tile_x - int(offset)
             if tile_origin >= target.get_width() or tile_origin + self.TILE_WIDTH < 0:
                 continue
-            for x, width, height, style in self.buildings:
-                left = tile_origin + x
-                if left + width < 0 or left > target.get_width():
-                    continue
-                top = self.base_y - height
-                shade = .78 + style * .08
-                color = tuple(min(255, int(channel * shade)) for channel in base_color)
-                pygame.draw.rect(target, color, (left, top, width, height))
-                if style == 1:
-                    pygame.draw.rect(target, color, (left + width // 3, top - 7, width // 3, 8))
-                # A few restrained window pixels establish scale without
-                # competing with the detailed foreground buildings.
-                for wx in range(left + 7, left + width - 4, 15):
-                    for wy in range(top + 10, self.base_y - 7, 20):
-                        if (wx * 11 + wy * 5) % 4:
-                            pixel = tuple((a + b) // 3 for a, b in zip(accent, color))
-                            pygame.draw.rect(target, pixel, (wx, wy, 3, 5))
+            target.blit(artwork, (tile_origin, 0))
 
 
 def make_city_layers() -> tuple[SkylineLayer, SkylineLayer]:

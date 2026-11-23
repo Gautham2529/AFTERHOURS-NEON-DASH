@@ -76,7 +76,7 @@ A live Pygame window was launched, but the automation surface could not read its
 | Adaptive difficulty | bounded factor uses reaction, avoidance, collisions, run success, selected pace | Implemented locally; model is explainable rules, not trained ML |
 | Fair obstacle generation | deterministic seeded generation, route simulation across live hazards, speed-based crossing times, reaction/lane-switch window, safe fallback | Partial; conservative lane-only model does not simulate detailed jump/slide timing or prove all possible long sequences |
 | Dynamic worlds | seven unlockable procedural environments, detail variants, palette/hazard/audio transitions, two depth-scrolling skyline layers | Partial; environments share a procedural scene grammar and have no authored unique scene art |
-| Character animation | reusable controller and Pygame manifest frames with fallback | Partial; procedural fallback has limited frames and victory is not used by this endless mode |
+| Character animation | reusable controller and Pygame manifest frames with fallback | Partial; built-in vector fallback uses an eight-phase stride, other states remain limited, and victory is not used by this endless mode |
 | Context-aware power-ups | magnet, shield, score, battery, overdrive, token doubler, upgrade and sound feedback | Implemented for current set; long-term balance remains untested |
 | Ghost replay | personal-best/previous and five archived run tracks, saved-run picker, playback toggle, bounded sampling, non-collision rendering | Partial; guide is procedural silhouette and replay follows sampled poses rather than event-perfect physics |
 | Player analytics | bounded SQLite `run_summaries` and `analytics_totals`; stats UI, input/collision/power-up and per-run difficulty metrics; legacy payload migration | Partial; no event-level raw telemetry or dedicated analysis charts, and historical records are capped at 100 |
@@ -89,7 +89,15 @@ A live Pygame window was launched, but the automation surface could not read its
 | Unlockable environments | level gates, persisted selection, world select, palette/hazard/audio identity | Partial; no gameplay modifiers beyond hazard pool and visuals/audio |
 | Accessibility/comfort | calm pace, reduced motion/flashing, audio controls, touch/swipe sensitivity, pause, breaks | Partial; no color-vision presets or remappable controls |
 
-- No third-party art pack or external licensed art is included/configured. The active fallback remains procedural; package-ready loading supports user-supplied packs.
+- No third-party art pack or external licensed art is included/configured. The active fallback combines built-in SVG and procedural drawing; package-ready loading supports user-supplied packs.
 - Coaching is based on action counts and collision labels. Hazard attribution is improved at collision time, but recommendations remain coarse heuristics.
 - Pattern tests prove basic lane availability and repetition limits; they do not formally prove every multi-pattern sequence is avoidable under all input timings.
 - Performance timing is synthetic offscreen measurement only, not an integrated-graphics hardware run.
+
+## Cached SVG visual upgrade
+
+- Added built-in SVG artwork for the night sky, detailed city strips, runner poses, hazards, pickups, beveled UI panels, and layered neon glows. Pygame-ce rasterizes these into cached surfaces; scaling is smooth and bounded by an LRU cache.
+- Integrated vector art into the existing parallax, gameplay, and UI render paths. Existing controls, simulation, collision checks, score rules, save data, game states, and sound systems remain unchanged.
+- SVG assets load through the existing Pygame-ce image loader. CairoSVG, Pillow, and NumPy were not added as runtime dependencies.
+- Added SVG loading/cache coverage and a gameplay-render regression asserting that rendering does not mutate live simulation state.
+- Latest validation: 67 tests passed. The existing 240-frame offscreen software-render benchmark measured a 3.78 ms mean and 4.51 ms p95; this is not a hardware FPS guarantee.

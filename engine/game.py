@@ -24,6 +24,8 @@ from engine.worlds import WORLDS, active_world, unlocked_worlds
 from engine.animation import CharacterAnimationController
 from engine.parallax import make_city_layers
 from engine.gamefeel import ComboTracker
+from engine.svg_art import (entity_surface, glow_surface, panel_surface, runner_surface,
+                            scaled as scale_svg, skyline_surface, sky_surface)
 
 
 WIDTH, HEIGHT = 960, 540
@@ -1315,7 +1317,7 @@ class NeonRunner:
         backdrop = self.city_backdrop if world.key == "city" else self.world_backdrops.get(world.key)
         custom_backdrop = backdrop is not None
         if not custom_backdrop:
-            pygame.draw.rect(self.screen, world.sky, (0, 0, WIDTH, 285))
+            self.screen.blit(sky_surface(world.sky, theme), (0, 0))
         else:
             self.screen.blit(self.assets.scaled(backdrop, (WIDTH, HEIGHT)), (0, 0))
         for x, y, size in self.stars:
@@ -1341,20 +1343,13 @@ class NeonRunner:
             for layer in self.parallax_layers:
                 layer.draw(self.screen, getattr(self, "distance", 0), world.skyline,
                            theme, self.reduced_motion)
+            building_specs = tuple((x, w, h, style) for x, _y, w, h, style in self.skyline)
+            self.screen.blit(skyline_surface(building_specs, WIDTH, 275,
+                                             (world.skyline, theme), height=285), (0, 0))
             for x, y, w, h, style in self.skyline:
-                color = world.skyline
-                pygame.draw.rect(self.screen, color, (x, y, w, h))
-                pygame.draw.line(self.screen, (33, 53, 76), (x, y), (x + w, y), 2)
-                for wx in range(x + 8, x + w - 4, 15):
-                    for wy in range(y + 12, 266, 20):
-                        if (wx * 7 + wy * 11) % 5 != 0:
-                            tint = theme if (wx + wy) % 3 else (166, 73, 128)
-                            pygame.draw.rect(self.screen, tint, (wx, wy, 4, 7))
                 if style == 1:
-                    pygame.draw.rect(self.screen, PINK, (x + w // 2 - 1, y - 15, 2, 15))
-                    pygame.draw.rect(self.screen,(23,43,66),(x+w//2-19,y+37,38,23),border_radius=3)
-                    pygame.draw.rect(self.screen,theme,(x+w//2-15,y+41,30,2))
-                    pygame.draw.rect(self.screen,PINK,(x+w//2-11,y+47,22,2))
+                    pygame.draw.line(self.screen, PINK, (x + w // 2, y),
+                                     (x + w // 2, y - 15), 2)
                 if world.atmosphere == "market" and style == 2:
                     awning_y = min(258, y + h - 34)
                     pygame.draw.rect(self.screen, (71, 43, 83), (x+5, awning_y, w-10, 17))
@@ -1477,6 +1472,13 @@ class NeonRunner:
         pygame.draw.polygon(self.fx_surface, haze,
                             ((480 - far_half, far_y), (480 + far_half, far_y),
                              (480 + 190, 258), (480 - 190, 258)))
+        for side in (-1, 1):
+            pygame.draw.line(self.fx_surface, (*theme, 26),
+                             (480 + side * far_half, far_y),
+                             (480 + side * near_half, near_y), 16)
+            pygame.draw.line(self.fx_surface, (*theme, 132),
+                             (480 + side * far_half, far_y),
+                             (480 + side * near_half, near_y), 3)
         self.screen.blit(self.fx_surface, (0, 0))
         # Sleepers move toward the runner, making the world feel alive.
         for i in range(9):
@@ -1566,12 +1568,16 @@ class NeonRunner:
             color = pickup_colors[kind]
             radius = max(4, int((11 if kind == "coin" else 19) * scale))
             center = (int(cx), int(y - radius))
-            pygame.draw.circle(self.fx_surface, (*color, 36),
-                               center, radius + max(2, radius // 2))
+            glow_size = max(16, min(64, round((radius * 3) / 8) * 8))
+            glow = glow_surface(color, glow_size)
+            self.fx_surface.blit(glow, glow.get_rect(center=center))
             pygame.draw.ellipse(self.screen, (4, 7, 15),
                                 (int(cx - radius * 1.3), int(y - 2),
                                  max(3, int(radius * 2.6)), max(2, int(4 * scale))))
         art = self.assets.sprite(kind)
+        from_pack = art is not None
+        if art is None:
+            art = entity_surface(kind)
         if art is not None:
             size = max(8, int(lane_w * (0.38 if kind == "coin" else 0.82) * scale))
             if kind in ("barrier", "gate", "fence", "electric_car", "train"):
@@ -1579,7 +1585,11 @@ class NeonRunner:
                                max(18, int(lane_w * 1.05 * scale)))
             else:
                 target_size = (size, size)
-            art = self.assets.scaled(art, target_size)
+            if from_pack:
+                art = self.assets.scaled(art, target_size)
+            else:
+                target_size = tuple(max(8, round(value / 4) * 4) for value in target_size)
+                art = scale_svg(art, target_size)
             self.screen.blit(art, art.get_rect(midbottom=(int(cx), int(y))))
             return
         if kind == "coin":
@@ -1671,8 +1681,19 @@ class NeonRunner:
         self.screen.blit(self.fx_surface, (0, 0))
         self.runner_sprite.set_animation(self.animation_asset_key(state))
         art = self.runner_sprite.image
+        from_pack = art is not None
+        if art is None:
+            pose = ("slide" if state == "slide" or self.slide_time > 0 else
+                    "jump" if state in ("jump", "fall", "jump_prep") or self.jump_time > 0 else
+                    state if state in ("dash", "shield") else "run")
+            frame = (0 if self.reduced_motion or pose in ("jump", "slide") else
+                     int(self.elapsed * 12 * 8 / math.tau) % 8)
+            art = runner_surface(jacket, trim, hair, pose, frame)
         if art is not None:
-            art = self.assets.scaled(art, (54, 76))
+            target_size = (54, 76) if from_pack else (
+                (84, 74) if pose == "slide" else (66, 78))
+            art = (self.assets.scaled(art, target_size) if from_pack
+                   else scale_svg(art, target_size))
             if self.dash_time > 0 and not self.reduced_motion:
                 for offset, alpha in ((12, 38), (22, 20)):
                     echo = art.copy()
@@ -2225,9 +2246,10 @@ class NeonRunner:
     def panel(self,rect:tuple[int,int,int,int],radius:int=12,
               fill:tuple[int,int,int]=(13,20,38),outline:tuple[int,int,int]|None=None)->None:
         """Draw a panel with an optional outline."""
-        pygame.draw.rect(self.screen,fill,rect,border_radius=radius)
-        if outline:
-            pygame.draw.rect(self.screen,outline,rect,width=2,border_radius=radius)
+        x, y, width, height = rect
+        edge = outline or (52, 83, 109)
+        surface = panel_surface(width, height, fill, edge)
+        self.screen.blit(surface, (x, y))
 
     def pill(self,label:str,center:tuple[int,int],color:tuple[int,int,int])->None:
         """Draw a centered status label."""
