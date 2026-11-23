@@ -351,6 +351,19 @@ def test_comfort_reduced_flashing_and_sensitivity_persist(runner):
     assert saved["control_sensitivity"] == 2
 
 
+def test_graphics_quality_settings_are_independent_and_persistent(runner):
+    for index in (12, 13, 14, 15):
+        runner.change_comfort(index)
+    saved = runner.save.load()
+    assert saved["glow_enabled"] is False
+    assert saved["particles_enabled"] is False
+    assert saved["reflections_enabled"] is False
+    assert saved["atmosphere_enabled"] is False
+    runner.particles.emit_burst(480, 400, (63, 231, 235),
+                                reduced_motion=not runner.particles_enabled)
+    assert runner.particles.particles == []
+
+
 def test_coin_bonus_pickup_doubles_tokens_and_dash_charge(runner):
     runner.begin_run()
     runner.pickup({"kind": "coin_bonus"})

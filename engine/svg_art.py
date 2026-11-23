@@ -82,6 +82,98 @@ def sky_surface(sky: tuple[int, int, int], accent: tuple[int, int, int]) -> pyga
     return _render(_document(960, 285, "".join(content)))
 
 
+def _road_lane_markup(accent_hex: str) -> list[str]:
+    content = []
+    for lane in (-1.5, -0.5, 0.5, 1.5):
+        x1 = 480 + lane * 40
+        x2 = 480 + lane * 121
+        content.append(
+            f'<path d="M{x1:g} 150 L{x2:g} 540" fill="none" '
+            f'stroke="{accent_hex}" stroke-opacity="{.28 if abs(lane) == 1.5 else .16}" '
+            f'stroke-width="{3 if abs(lane) == 1.5 else 1}"/>'
+        )
+    return content
+
+
+def _road_sleeper_markup(phase: int) -> list[str]:
+    content = []
+    for index in range(10):
+        depth = (index + phase / 16) % 10 / 10
+        y = round(150 + depth * 390)
+        half = round(60 + depth * 370)
+        content.append(
+            f'<path d="M{480 - half} {y} L{480 + half} {y}" '
+            f'fill="none" stroke="#26374d" stroke-opacity=".72" '
+            f'stroke-width="{1 + round(depth * 4)}"/>'
+            f'<path d="M{480 - half + 12} {y - 2} L{480 - half + 42} {y - 2}" '
+            f'stroke="#8bdbea" stroke-opacity=".28" stroke-width="{1 + round(depth * 2)}"/>'
+            f'<path d="M{480 + half - 42} {y - 2} L{480 + half - 12} {y - 2}" '
+            'stroke="#ff82c8" stroke-opacity=".32" '
+            f'stroke-width="{1 + round(depth * 2)}"/>'
+        )
+    return content
+
+
+def _road_reflection_markup(accent_hex: str, phase: int) -> list[str]:
+    content = []
+    for side in (-1, 1):
+        for index in range(9):
+            depth = ((index + phase / 16) % 9) / 9
+            y = round(150 + depth * 390)
+            half = round(60 + depth * 370)
+            x = 480 + side * (half - 6)
+            color = accent_hex if index % 2 == 0 else "#ff67b7"
+            content.append(
+                f'<circle cx="{x}" cy="{y}" r="{2 + round(depth * 7)}" '
+                f'fill="{color}" fill-opacity="{.28 + depth * .58}"/>'
+                f'<path d="M{x} {y} V{min(540, y + round(12 + depth * 20))}" '
+                f'stroke="{color}" stroke-opacity="{.20 + depth * .30}" '
+                f'stroke-width="{1 + round(depth * 2)}"/>'
+            )
+    return content
+
+
+@lru_cache(maxsize=24)
+def road_surface(
+    track: tuple[int, int, int],
+    accent: tuple[int, int, int],
+    phase: int,
+    reflections: bool = True,
+) -> pygame.Surface:
+    """Create a cached perspective road with lane marks, sleepers, and rails."""
+    phase = phase % 16
+    track_hex = _hex(track)
+    accent_hex = _hex(accent)
+    content = [
+        '<defs>',
+        '<linearGradient id="road" x1="0" y1="0" x2="0" y2="1">',
+        '<stop offset="0" stop-color="#14182a"/>',
+        f'<stop offset=".38" stop-color="{track_hex}"/>',
+        '<stop offset="1" stop-color="#0a0f1d"/>',
+        '</linearGradient>',
+        '<linearGradient id="edge" x1="0" y1="0" x2="1" y2="0">',
+        f'<stop offset="0" stop-color="{accent_hex}" stop-opacity=".12"/>',
+        f'<stop offset=".5" stop-color="{accent_hex}" stop-opacity=".92"/>',
+        f'<stop offset="1" stop-color="{accent_hex}" stop-opacity=".12"/>',
+        '</linearGradient>',
+        '</defs>',
+        '<path d="M422 150 L538 150 L910 540 L50 540 Z" fill="url(#road)"/>',
+        '<path d="M422 150 L538 150 L910 540 L50 540 Z" fill="none" '
+        f'stroke="{accent_hex}" stroke-opacity=".18" stroke-width="3"/>',
+    ]
+    content.extend(_road_lane_markup(accent_hex))
+    content.extend(_road_sleeper_markup(phase))
+    content.extend((
+        '<path d="M422 150 L50 540" fill="none" stroke="url(#edge)" stroke-width="8"/>',
+        '<path d="M538 150 L910 540" fill="none" stroke="url(#edge)" stroke-width="8"/>',
+        '<path d="M412 150 L30 540" fill="none" stroke="#d9faff" stroke-opacity=".28" stroke-width="2"/>',
+        '<path d="M548 150 L930 540" fill="none" stroke="#ffc2ea" stroke-opacity=".24" stroke-width="2"/>',
+    ))
+    if reflections:
+        content.extend(_road_reflection_markup(accent_hex, phase))
+    return _render(_document(960, 540, "".join(content)))
+
+
 def _window_column_markup(
     window_x: int,
     column: int,
@@ -350,12 +442,16 @@ def runner_surface(
         f'<path d="M34 40 L51 36" stroke="{trim_hex}" stroke-width="4"/>'
         '<path d="M31 54 L54 54" stroke="#bafcff" stroke-opacity=".78" stroke-width="2"/>'
         f'{arms}'
+        '<path d="M28 34 L34 29 L38 34 L32 40 Z" fill="#91cbd4" fill-opacity=".58"/>'
+        '<path d="M51 34 L57 38 L53 43 L49 39 Z" fill="#91cbd4" fill-opacity=".42"/>'
         '<circle cx="17" cy="55" r="4" fill="#efb996"/>'
         '<circle cx="64" cy="54" r="4" fill="#efb996"/>'
         '<path d="M36 13 Q38 7 47 8 Q57 10 57 20 L55 31 Q47 36 37 30 Z" '
         'fill="#efb996" stroke="#ffe0bf" stroke-width="1.5"/>'
         f'<path d="M34 17 Q33 5 46 4 Q57 5 60 14 L57 19 L42 15 L37 22 Z" fill="{hair_hex}"/>'
-        '<path d="M47 22 H55" stroke="#fff2da" stroke-width="2"/>'
+        '<path d="M38 20 Q47 17 56 21 L55 25 Q47 28 39 24 Z" fill="#07111f" '
+        'stroke="#91eef4" stroke-opacity=".72" stroke-width="1"/>'
+        '<path d="M48 21 L54 22" stroke="#fff2da" stroke-width="2"/>'
         '<path d="M30 33 L25 39 L30 43" fill="none" stroke="#79f0f0" stroke-width="2"/>'
         f'<path d="M51 34 L56 42" stroke="{trim_hex}" stroke-width="3"/>'
     )

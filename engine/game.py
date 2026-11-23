@@ -25,12 +25,12 @@ from engine.animation import CharacterAnimationController
 from engine.parallax import make_city_layers
 from engine.gamefeel import ComboTracker
 from engine.svg_art import (entity_surface, glow_surface, panel_surface, runner_surface,
-                            scaled as scale_svg, skyline_surface, sky_surface)
+                            road_surface, scaled as scale_svg, skyline_surface, sky_surface)
 
 
 WIDTH, HEIGHT = 960, 540
 FPS = 60
-COMFORT_OPTION_COUNT = 12
+COMFORT_OPTION_COUNT = 16
 INK = (8, 11, 23)
 PANEL = (13, 20, 38)
 WHITE = (239, 245, 248)
@@ -231,6 +231,10 @@ class NeonRunner:
         self.avatar_selection = next(i for i, item in enumerate(AVATARS) if item["id"] == self.avatar_id)
         self.reduced_motion = stored.get("reduced_motion", True) is True
         self.reduced_flashing = stored.get("reduced_flashing", True) is True
+        self.glow_enabled = stored.get("glow_enabled", True) is True
+        self.particles_enabled = stored.get("particles_enabled", True) is True
+        self.reflections_enabled = stored.get("reflections_enabled", True) is True
+        self.atmosphere_enabled = stored.get("atmosphere_enabled", True) is True
         self.combo_enabled = stored.get("combo_enabled", True) is True
         self.screen_shake_enabled = stored.get("screen_shake_enabled", True) is True
         self.control_sensitivity = min(2, saved_level(stored.get("control_sensitivity", 1), 1))
@@ -341,6 +345,10 @@ class NeonRunner:
                         "unlocked_avatars": sorted(self.unlocked_avatars), "avatar_id": self.avatar_id,
                         "reduced_motion": self.reduced_motion, "calm_mode": self.calm_mode,
                         "reduced_flashing": self.reduced_flashing,
+                        "glow_enabled": self.glow_enabled,
+                        "particles_enabled": self.particles_enabled,
+                        "reflections_enabled": self.reflections_enabled,
+                        "atmosphere_enabled": self.atmosphere_enabled,
                         "combo_enabled": self.combo_enabled,
                         "screen_shake_enabled": self.screen_shake_enabled,
                         "control_sensitivity": self.control_sensitivity,
@@ -736,6 +744,16 @@ class NeonRunner:
             self.screen_shake_enabled = not self.screen_shake_enabled
             if not self.screen_shake_enabled:
                 self.shake_time = self.shake_strength = 0.0
+        elif index == 12:
+            self.glow_enabled = not self.glow_enabled
+        elif index == 13:
+            self.particles_enabled = not self.particles_enabled
+            if not self.particles_enabled:
+                self.particles.clear()
+        elif index == 14:
+            self.reflections_enabled = not self.reflections_enabled
+        elif index == 15:
+            self.atmosphere_enabled = not self.atmosphere_enabled
         self.apply_audio_levels()
         self.persist()
 
@@ -920,7 +938,7 @@ class NeonRunner:
         self.dash_trail_timer = max(0.0, self.dash_trail_timer - dt)
         if self.dash_time > 0 and self.dash_trail_timer <= 0:
             self.particles.emit_trail(self.lane_x(self.draw_lane, PLAYER_Y), PLAYER_Y - 15,
-                                      CYAN, self.reduced_motion)
+                                      CYAN, self.reduced_motion or not self.particles_enabled)
             self.dash_trail_timer = .045
         locomotion = ("dash" if self.dash_time > 0 else "slide" if self.slide_time > 0
                       else "jump" if self.jump_time > self.jump_duration * .5
@@ -968,7 +986,8 @@ class NeonRunner:
             if obj["kind"] in ("coin", "battery", "shield", "magnet", "score_boost", "overdrive", "coin_bonus"):
                 if abs(obj["y"] - PLAYER_Y) < 24 and abs(obj["lane"] - self.draw_lane) < 0.47:
                     self.particles.emit(self.lane_x(obj["lane"], obj["y"]), obj["y"],
-                                        GOLD if obj["kind"] == "coin" else CYAN, self.reduced_motion)
+                                        GOLD if obj["kind"] == "coin" else CYAN,
+                                        self.reduced_motion or not self.particles_enabled)
                     self.pickup(obj)
                     self.entities.remove(obj)
                     continue
@@ -1064,7 +1083,7 @@ class NeonRunner:
                          "score_boost": GOLD, "overdrive": CYAN,
                          "coin_bonus": (255, 145, 70)}.get(kind, WHITE))
         self.particles.emit_burst(self.lane_x(self.draw_lane, PLAYER_Y), PLAYER_Y - 28,
-                                  effect_color, self.reduced_motion)
+                                  effect_color, self.reduced_motion or not self.particles_enabled)
         if kind != "coin":
             self.animation.trigger("powerup")
         if kind == "coin":
@@ -1114,7 +1133,8 @@ class NeonRunner:
         if self.hit_cooldown > 0:
             return
         self.particles.emit_burst(self.lane_x(self.draw_lane, PLAYER_Y), PLAYER_Y - 30,
-                                  PINK if not self.shield else CYAN, self.reduced_motion)
+                                  PINK if not self.shield else CYAN,
+                                  self.reduced_motion or not self.particles_enabled)
         self.combo.break_chain()
         self.audio.play("hit")
         self.telemetry.collision(collision_kind)
@@ -1404,6 +1424,9 @@ class NeonRunner:
     def draw_environment(self, world) -> None:
         """Layer restrained weather, haze, and light shafts over each world."""
         self.fx_surface.fill((0, 0, 0, 0))
+        if not self.atmosphere_enabled:
+            self.screen.blit(self.fx_surface, (0, 0))
+            return
         atmosphere = world.atmosphere
         if atmosphere in ("neon", "industrial", "highway") and not (
                 self.reduced_motion or self.reduced_flashing):
@@ -1461,12 +1484,9 @@ class NeonRunner:
         theme = world.accent
         far_y, near_y = 150, 540
         far_half, near_half = 58, 430
-        road = [(480-far_half, far_y), (480+far_half, far_y),
-                (480+near_half, near_y), (480-near_half, near_y)]
-        pygame.draw.polygon(self.screen, world.track, road)
-        pygame.draw.polygon(self.screen, tuple(min(255, c+14) for c in world.track),
-                            [(480-far_half+9, far_y), (480+far_half-9, far_y),
-                             (480+near_half-22, near_y), (480-near_half+22, near_y)])
+        phase = int(self.stripe_scroll / 16) % 16
+        self.screen.blit(road_surface(world.track, theme, phase,
+                                      reflections=self.reflections_enabled), (0, 0))
         self.fx_surface.fill((0, 0, 0, 0))
         haze = (*world.skyline, 28)
         pygame.draw.polygon(self.fx_surface, haze,
@@ -1493,27 +1513,28 @@ class NeonRunner:
             pygame.draw.line(self.screen, (65, 89, 111), (int(x1), far_y), (int(x2), near_y), 3 if abs(boundary) == 1.5 else 1)
         # Reflected rail light and soft bloom reinforce the wet track.
         self.fx_surface.fill((0, 0, 0, 0))
-        for side in (-1, 1):
-            for i in range(9):
-                t = ((i / 9) + self.stripe_scroll / 160) % 1
-                y = far_y + t * (near_y - far_y)
-                half = far_half + t * (near_half - far_half)
-                x = 480 + side * (half - 6)
-                c = theme if i % 2 else PINK
-                center = (int(x), int(y))
-                pygame.draw.line(self.fx_surface, (*c, max(8, int(26 * (1 - t)))),
-                                 center, (center[0], min(HEIGHT, center[1] + int(12 + t * 20))),
-                                 max(1, int(2 + t * 2)))
-                pygame.draw.circle(self.fx_surface, (*c, 48), center, max(5, int(8 + t * 8)))
-        self.screen.blit(self.fx_surface, (0, 0))
-        for side in (-1, 1):
-            for i in range(9):
-                t = ((i / 9) + self.stripe_scroll / 160) % 1
-                y = far_y + t * (near_y - far_y)
-                half = far_half + t * (near_half - far_half)
-                x = 480 + side * (half - 6)
-                c = theme if i % 2 else PINK
-                pygame.draw.circle(self.screen, c, (int(x), int(y)), max(2, int(2+t*3)))
+        if self.reflections_enabled:
+            for side in (-1, 1):
+                for i in range(9):
+                    t = ((i / 9) + self.stripe_scroll / 160) % 1
+                    y = far_y + t * (near_y - far_y)
+                    half = far_half + t * (near_half - far_half)
+                    x = 480 + side * (half - 6)
+                    c = theme if i % 2 else PINK
+                    center = (int(x), int(y))
+                    pygame.draw.line(self.fx_surface, (*c, max(8, int(26 * (1 - t)))),
+                                     center, (center[0], min(HEIGHT, center[1] + int(12 + t * 20))),
+                                     max(1, int(2 + t * 2)))
+                    pygame.draw.circle(self.fx_surface, (*c, 48), center, max(5, int(8 + t * 8)))
+            self.screen.blit(self.fx_surface, (0, 0))
+            for side in (-1, 1):
+                for i in range(9):
+                    t = ((i / 9) + self.stripe_scroll / 160) % 1
+                    y = far_y + t * (near_y - far_y)
+                    half = far_half + t * (near_half - far_half)
+                    x = 480 + side * (half - 6)
+                    c = theme if i % 2 else PINK
+                    pygame.draw.circle(self.screen, c, (int(x), int(y)), max(2, int(2+t*3)))
 
         if self.dash_time > 0 and not self.reduced_motion:
             self.fx_surface.fill((0, 0, 0, 0))
@@ -1535,7 +1556,7 @@ class NeonRunner:
             if sample is not None:
                 self.draw_ghost(sample)
         self.draw_runner()
-        self.particles.draw(self.screen)
+        self.particles.draw(self.screen, glow_enabled=self.glow_enabled)
         if self.world_transition_timer > 0 and not self.reduced_motion:
             self.fx_surface.fill((4, 8, 20, int(70 * self.world_transition_timer / .75)))
             pygame.draw.rect(self.fx_surface, (*world.accent, 35),
@@ -1569,8 +1590,9 @@ class NeonRunner:
             radius = max(4, int((11 if kind == "coin" else 19) * scale))
             center = (int(cx), int(y - radius))
             glow_size = max(16, min(64, round((radius * 3) / 8) * 8))
-            glow = glow_surface(color, glow_size)
-            self.fx_surface.blit(glow, glow.get_rect(center=center))
+            if self.glow_enabled:
+                glow = glow_surface(color, glow_size)
+                self.fx_surface.blit(glow, glow.get_rect(center=center))
             pygame.draw.ellipse(self.screen, (4, 7, 15),
                                 (int(cx - radius * 1.3), int(y - 2),
                                  max(3, int(radius * 2.6)), max(2, int(4 * scale))))
@@ -1677,7 +1699,8 @@ class NeonRunner:
         state = self.animation.state
         pygame.draw.ellipse(self.screen, (3, 6, 14), (int(center_x - 27), PLAYER_Y - 8, 54, 12))
         self.fx_surface.fill((0, 0, 0, 0))
-        pygame.draw.circle(self.fx_surface, (*jacket, 28), (int(center_x), int(y - 38)), 31)
+        if self.glow_enabled:
+            pygame.draw.circle(self.fx_surface, (*jacket, 28), (int(center_x), int(y - 38)), 31)
         self.screen.blit(self.fx_surface, (0, 0))
         self.runner_sprite.set_animation(self.animation_asset_key(state))
         art = self.runner_sprite.image
@@ -1881,9 +1904,13 @@ class NeonRunner:
             ("SWIPE SENSITIVITY", "Gesture threshold", ("HIGH","NORMAL","LOW")[self.control_sensitivity]),
             ("CLEAN STREAK COMBOS", "Bonus points for consecutive clean actions", "ON" if self.combo_enabled else "OFF"),
             ("IMPACT SHAKE", "Small hit nudge; reduced motion disables it", "ON" if self.screen_shake_enabled else "OFF"),
+            ("NEON GLOW", "Independent glow and bloom rendering", "ON" if self.glow_enabled else "OFF"),
+            ("PICKUP PARTICLES", "Particle bursts and dash trails", "ON" if self.particles_enabled else "OFF"),
+            ("TRACK REFLECTIONS", "Wet-road reflections and luminous streaks", "ON" if self.reflections_enabled else "OFF"),
+            ("ATMOSPHERIC FX", "Rain, haze, fog and light shafts", "ON" if self.atmosphere_enabled else "OFF"),
         )
         for index,(label,description,value) in enumerate(rows):
-            y=92+index*31
+            y=92+index*24
             active=index==self.comfort_selection
             self.panel((201,y,558,29),radius=9,fill=(24,51,70) if active else (17,28,47),outline=CYAN if active else (43,65,87))
             self.text(label,216,y,CYAN if active else WHITE,self.small)

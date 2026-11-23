@@ -18,7 +18,7 @@ main.py
 ## Responsibilities
 
 - `engine/game.py` owns screen state, input routing, player/run state, collision outcomes, HUD, and screen composition. It coordinates systems but still contains a large amount of rendering code.
-- `engine/svg_art.py` rasterizes reusable SVG scenery, entities, runner poses, panels, and glow sprites to cached Pygame surfaces. Rasterization and size-specific smooth scaling happen on first use; subsequent draws reuse bounded caches.
+- `engine/svg_art.py` rasterizes reusable SVG scenery, perspective roads, entities, runner poses, panels, and glow sprites to cached Pygame surfaces. Rasterization and size-specific smooth scaling happen on first use; subsequent draws reuse bounded caches.
 - `engine/patterns.py` makes one pattern at a time. Hazard patterns block one lane and keep the other two open; recent lane/kind history reduces repeated patterns. Before accepting a hazard row, it simulates active and candidate hazard crossing times at current movement speed and checks a bounded reaction/lane-switch window; after bounded rerolls it can leave a gap.
 - `engine/difficulty.py` contains calm/standard speed and spawn-interval curves with bounded adaptive multipliers.
 - `engine/analytics.py` stores bounded local run summaries and lane preference, calculates a conservative play-style hint, and adjusts difficulty gradually from observed success/reaction inputs.
@@ -26,6 +26,7 @@ main.py
 - `engine/replay.py` samples personal-best, previous, and up to five archived runs at 20 Hz, with a 90-second per-run cap. The comfort screen selects archived tracks; the displayed guide is a simple non-colliding silhouette.
 - `engine/worlds.py` defines seven level-gated procedural environments and per-world hazard pools; the player can select unlocked environments, which rotate every 5,000 metres during play. `engine/parallax.py` draws cached, deterministic SVG skyline strips at separate speeds and freezes motion when reduced motion is enabled.
 - `engine/effects.py` bounds pickup particle count, adds cached vector glow sprites, and suppresses particles in reduced-motion mode.
+- Graphics quality is split into persisted glow, particle, reflection, and atmosphere switches. Each effect is gated independently at draw/emission time so low-power Intel Iris Xe systems can reduce cost without changing simulation state.
 - `engine/progression.py` defines behavior-selected one-run missions, two adaptive multi-run career contracts with persisted progress, rotating offline daily/weekly objectives, and lifetime achievements with one-time reward evaluation.
 - `engine/assets.py` loads cached atlas textures (including SVG where supported by the installed Pygame-ce image loader) from local files or Python package resources. `AnimatedSprite` uses Pygame's sprite base class. Missing art falls through to the built-in SVG/procedural renderer.
 - `engine/audio.py` generates music and effects in memory and applies separate music/effects levels, environment motifs, booster state, and coin rate limiting.

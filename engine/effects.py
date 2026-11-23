@@ -9,6 +9,8 @@ from engine.svg_art import glow_surface
 
 
 class ParticlePool:
+    """Manage a bounded set of lightweight gameplay particles."""
+
     CAPACITY = 64
 
     def __init__(self, seed: int | None = None) -> None:
@@ -16,6 +18,7 @@ class ParticlePool:
         self.particles: list[dict] = []
 
     def emit(self, x: float, y: float, color: tuple[int, int, int], reduced_motion: bool = False) -> None:
+        """Emit a small pickup or impact particle set."""
         if reduced_motion:
             return
         for _ in range(6):
@@ -29,6 +32,7 @@ class ParticlePool:
 
     def emit_burst(self, x: float, y: float, color: tuple[int, int, int],
                    reduced_motion: bool = False) -> None:
+        """Emit a bounded radial burst."""
         if reduced_motion:
             return
         for _ in range(14):
@@ -44,6 +48,7 @@ class ParticlePool:
 
     def emit_trail(self, x: float, y: float, color: tuple[int, int, int],
                    reduced_motion: bool = False) -> None:
+        """Emit a short downward dash trail."""
         if reduced_motion:
             return
         for _ in range(2):
@@ -57,6 +62,7 @@ class ParticlePool:
                                    "color": color})
 
     def update(self, dt: float) -> None:
+        """Advance and remove expired particles."""
         retained = []
         for particle in self.particles:
             particle["life"] -= dt
@@ -68,14 +74,16 @@ class ParticlePool:
         self.particles = retained
 
     def clear(self) -> None:
+        """Remove all active particles."""
         self.particles.clear()
 
-    def draw(self, target: pygame.Surface) -> None:
+    def draw(self, target: pygame.Surface, glow_enabled: bool = True) -> None:
+        """Draw particles with optional cached vector glows."""
         for particle in self.particles:
             radius = max(1, int(3 * particle["life"] / .42))
             center = (int(particle["x"]), int(particle["y"]))
             color = particle["color"]
-            if radius > 1:
+            if radius > 1 and glow_enabled:
                 halo = glow_surface(color, 24)
                 target.blit(halo, halo.get_rect(center=center))
             pygame.draw.circle(target, color, center, radius)

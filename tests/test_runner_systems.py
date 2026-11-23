@@ -1,3 +1,10 @@
+import os
+
+os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+
+import pygame
+
 from engine.analytics import AdaptiveDifficulty, PlayerAnalytics, RunTelemetry
 from engine.replay import GhostReplay
 from engine.worlds import WORLDS, active_world, unlocked_worlds
@@ -121,6 +128,52 @@ def test_particle_bursts_and_trails_are_bounded_and_respect_reduced_motion():
     assert len(particles.particles) == 16
     particles.update(.6)
     assert particles.particles == []
+
+
+def test_particle_loop_capacity_glow_and_expiry_white_box_paths():
+    pygame.init()
+    pygame.display.set_mode((960, 540))
+    try:
+        particles = ParticlePool(seed=11)
+        particles.emit(100, 200, (63, 231, 235))
+        assert len(particles.particles) == 6
+        particles.emit_burst(100, 200, (255, 84, 155))
+        assert len(particles.particles) == 20
+
+        particles.particles = [
+            {"x": 100.0, "y": 200.0, "vx": 10.0, "vy": -20.0,
+             "life": 0.40, "color": (63, 231, 235)},
+            {"x": 110.0, "y": 210.0, "vx": 5.0, "vy": 5.0,
+             "life": 0.01, "color": (255, 84, 155)},
+        ]
+        surface = pygame.Surface((960, 540), pygame.SRCALPHA)
+        particles.draw(surface, glow_enabled=True)
+        particles.draw(surface, glow_enabled=False)
+        particles.update(.02)
+        assert len(particles.particles) == 1
+        particles.update(1.0)
+        assert particles.particles == []
+
+        particles.emit_trail(200, 300, (255, 207, 95), reduced_motion=False)
+        assert len(particles.particles) == 2
+        particles.emit(200, 300, (255, 207, 95), reduced_motion=True)
+        particles.emit_burst(200, 300, (255, 207, 95), reduced_motion=True)
+        particles.emit_trail(200, 300, (255, 207, 95), reduced_motion=True)
+        assert len(particles.particles) == 2
+        particles.clear()
+        assert particles.particles == []
+
+        full = ParticlePool(seed=12)
+        full.particles = [{
+            "x": 1.0, "y": 1.0, "vx": 0.0, "vy": 0.0,
+            "life": 0.3, "color": (255, 255, 255),
+        }] * 64
+        full.emit(1, 1, (255, 255, 255))
+        full.emit_burst(1, 1, (255, 255, 255))
+        full.emit_trail(1, 1, (255, 255, 255))
+        assert len(full.particles) == 64
+    finally:
+        pygame.quit()
 
 
 def test_mission_selection_starts_familiar_then_targets_recent_skill_gaps():

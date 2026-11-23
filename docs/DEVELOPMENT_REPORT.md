@@ -97,7 +97,9 @@ A live Pygame window was launched, but the automation surface could not read its
 ## Cached SVG visual upgrade
 
 - Added built-in SVG artwork for the night sky, detailed city strips, runner poses, hazards, pickups, beveled UI panels, and layered neon glows. Pygame-ce rasterizes these into cached surfaces; scaling is smooth and bounded by an LRU cache.
+- Checkpoint 2 added a cached perspective-road surface with lane separators, animated sleepers, edge rails, reflections, and richer vector runner armor/visor details. The existing lane coordinates, runner state, controls, collision model, and camera behavior remain unchanged.
+- Checkpoint 3 added independent persisted graphics switches for glow, particles, track reflections, and atmospheric effects. SVG road/rain/fog assets remain cached, and dash/pickup particles use the existing bounded pool. The comfort screen exposes each switch, while reduced-motion and reduced-flashing remain compatibility gates.
 - Integrated vector art into the existing parallax, gameplay, and UI render paths. Existing controls, simulation, collision checks, score rules, save data, game states, and sound systems remain unchanged.
 - SVG assets load through the existing Pygame-ce image loader. CairoSVG, Pillow, and NumPy were not added as runtime dependencies.
 - Added SVG loading/cache coverage and a gameplay-render regression asserting that rendering does not mutate live simulation state.
-- Latest validation: 67 tests passed. The existing 240-frame offscreen software-render benchmark measured a 3.78 ms mean and 4.51 ms p95; this is not a hardware FPS guarantee.
+- Latest validation: 68 tests passed. The checkpoint 3 240-frame offscreen benchmark measured a 5.44 ms mean and 8.67 ms p95; this is not a hardware FPS guarantee. Cached road phases, independent quality switches, and bounded asset caches keep rasterization and optional effects off the steady-state gameplay path.

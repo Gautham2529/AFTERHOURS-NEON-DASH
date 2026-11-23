@@ -7,7 +7,8 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 import pygame
 
 from engine.assets import AnimatedSprite, AssetPack
-from engine.svg_art import entity_surface, runner_surface, scaled as scale_svg
+from engine.svg_art import (entity_surface, road_surface, runner_surface,
+                            scaled as scale_svg)
 
 
 def test_python_package_asset_pack_loads_animation_sprite_and_backdrop(tmp_path, monkeypatch):
@@ -103,6 +104,60 @@ def test_svg_assets_load_from_manifest_and_reuse_vector_surfaces(tmp_path):
             for x in range(15, 76)
             for y in range(58, 84)
         )
+        road_0 = road_surface((18, 24, 40), (49, 225, 232), 3)
+        assert road_0.get_size() == (960, 540)
+        assert road_surface((18, 24, 40), (49, 225, 232), 3) is road_0
+        road_no_reflections = road_surface((18, 24, 40), (49, 225, 232),
+                                           3, reflections=False)
+        assert road_no_reflections is not road_0
+    finally:
+        pygame.quit()
+
+
+def test_white_box_svg_entity_pose_loop_and_cache_branches():
+    pygame.init()
+    try:
+        pygame.display.set_mode((960, 540))
+        from engine.svg_art import (glow_surface, panel_surface, scaled,
+                                    sky_surface, skyline_surface)
+
+        sky_surface.cache_clear()
+        first_sky = sky_surface((18, 31, 56), (63, 231, 235))
+        assert sky_surface((18, 31, 56), (63, 231, 235)) is first_sky
+        sky_surface((33, 20, 60), (255, 84, 155))
+
+        building_specs = ((0, 60, 80, 0), (65, 45, 120, 1),
+                          (115, 70, 45, 2))
+        first_skyline = skyline_surface(building_specs, 960, 275,
+                                        ((18, 31, 56), (63, 231, 235)))
+        assert skyline_surface(building_specs, 960, 275,
+                               ((18, 31, 56), (63, 231, 235))) is first_skyline
+
+        known_entities = (
+            "coin", "battery", "shield", "magnet", "score_boost",
+            "overdrive", "coin_bonus", "barrier", "gate", "fence",
+            "electric_car", "train",
+        )
+        for kind in known_entities:
+            assert entity_surface(kind) is not None
+        assert entity_surface("unknown_entity") is None
+
+        for pose in ("run", "jump", "slide", "shield", "dash", "fall"):
+            for frame in (0, 1, 7, 8):
+                art = runner_surface((-40, 300, 520), (-20, 400, 600),
+                                     (-10, 200, 300), pose, frame)
+                assert art is not None
+
+        assert panel_surface(12, 12, (13, 20, 38), (63, 231, 235)).get_size() == (12, 12)
+        assert panel_surface(320, 160, (13, 20, 38), (63, 231, 235)).get_size() == (320, 160)
+        assert glow_surface((255, 84, 155), 4).get_size() == (4, 4)
+        assert glow_surface((255, 84, 155), 128).get_size() == (128, 128)
+
+        from engine.svg_art import _SCALED
+        test_surface = pygame.Surface((8, 8), pygame.SRCALPHA)
+        for edge in range(-5, 140):
+            scaled(test_surface, (edge, edge))
+        assert len(_SCALED) <= 128
     finally:
         pygame.quit()
 

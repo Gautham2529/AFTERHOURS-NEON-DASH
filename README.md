@@ -421,6 +421,12 @@ Run the test suite using:
 python -m pytest -q
 ```
 
+For the graphics white-box branch/statement report:
+
+```powershell
+python -m pytest -q --cov=engine.svg_art --cov=engine.effects --cov=engine.parallax --cov-branch --cov-config=.coveragerc --cov-report=term-missing tests/test_assets.py tests/test_runner_systems.py tests/test_parallax.py
+```
+
 The tests cover:
 
 - Save handling.
